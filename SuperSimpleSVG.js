@@ -17,7 +17,7 @@ class SVG{
         this.element = document.createElementNS('http://www.w3.org/2000/svg',this.elementName);
     }
 
-    draw(s){
+    _draw(s){
         if(!s){
             s=this.svg;
         }
@@ -27,9 +27,9 @@ class SVG{
             for(var i in this.attributes){
                 e.setAttribute(i,this.attributes[i]);
             }
-            if(this.svg){
-                this.svg.append(e);
-            }
+
+            s.append(e);
+
             this.element = e;
 
             return this;
@@ -37,6 +37,11 @@ class SVG{
             return this;
         }
     }
+
+    draw(s){
+        return this._draw(s);
+    }
+
 
     getElement(){
         if(this.element){
@@ -81,10 +86,35 @@ class SVG{
 
           return {x:x,y:y};
      }
-
-
 }
+class Group extends SVG{
+    constructor(svg){
+        super("g",svg);
+    }
 
+    add(svgObject){
+        var elem = $(this.getElement());
+        elem.append(svgObject.element?svgObject.element:svgObject.draw(elem).getElement());
+        return this;
+    }
+
+    setPosition(x,y){
+        this.setAttribute("transform","translate("+x+","+y+")");
+        return this;
+    }
+}
+class Text extends SVG{
+    constructor(svg,x,y,text){
+        super("text",svg);
+        this.setAttribute("x",x);
+        this.setAttribute("y",y);
+        this.text=text;
+    }
+
+    draw(s){
+        $(this._draw(s).getElement()).text(this.text);
+    }
+}
 class Line extends SVG{
     constructor(svg){
         super("line",svg);
@@ -100,7 +130,38 @@ class Line extends SVG{
         return this;
     }
 }
+class Polygon extends SVG{
+    constructor(svg){
+        super("polygon",svg);
+        this.points = [];
+    }
 
+    addPoint(x,y){
+        this.points.push([x,y]);
+        this.serializePoints();
+        return this;
+    }
+
+    setPoints(arr){
+        this.points = arr;
+        this.serializePoints();
+        return this;
+    }
+
+    serializePoints(){
+        var pointString = "";
+        var arr = this.points;
+        for(var i=0;i<arr.length;i++){
+            var p = arr[i];
+            var ps = arr.join(",");
+            if(i>0){
+                pointString+=" ";
+            }
+            pointString+=ps;
+        }
+        this.setAttribute("points",pointString);
+    }
+}
 class Circle extends SVG{
     constructor(svg){
         super("circle",svg);
@@ -150,7 +211,43 @@ class Rectangle extends SVG{
         return this;
     }
 }
+class Rectangle3D extends Group{
+    constructor(svg){
+        super(svg);
+        this.depth = 10;
+    }
+    setTopLeft(x,y){
+        this.setAttribute("x",x);
+        this.setAttribute("y",y);
+        return this;
+    }
+    setWidth(w){
+        this.setAttribute("width",w);
+        return this;
+    }
+    setHeight(h){
+        this.setAttribute("height",h);
+        return this;
+    }
 
+    draw(s){
+        var x = this.getAttribute("x");
+        var y = this.getAttribute("y");
+        var w = this.getAttribute("width");
+        var h = this.getAttribute("height");
+        var f = this.getAttribute("fill");
+        var sw = this.getAttribute("stroke-width");
+        var sc = this.getAttribute("stroke");
+        var e = $(this._draw(s).getElement());
+
+        var topPoly = new Polygon(e);
+        var p = topPoly.getPoint(this.depth,213,{x:x,y:y});
+        topPoly.setPoints([[x,y],[p.x,p.y],[p.x+w,p.y],[x+w,y]]).setStroke(sc,sw).setFill(f).draw(e);
+        var rightPoly = (new Polygon(e)).setPoints([[p.x+w,p.y],[x+w,y],[x+w,y+h],[p.x+w,p.y+h]]).setStroke(sc,sw).setFill(f).draw(e);
+        var rect = (new Rectangle(e)).setTopLeft(p.x,p.y).setWidth(w).setHeight(h).setStroke(sc,sw).setFill(f).draw(e);
+    }
+
+}
 class Path extends SVG{
     constructor(svg){
         super("path",svg);
@@ -162,21 +259,8 @@ class Path extends SVG{
     }
 }
 
-class Group extends SVG{
-    constructor(svg){
-        super("g",svg)
-    }
 
-    add(svgObject){
-        $(this.element).append(svgObject.element);
-        return this;
-    }
 
-    setPosition(x,y){
-        this.setAttribute("transform","translate("+x+","+y+")");
-        return this;
-    }
-}
 
 class Pie extends Path{
     /**
@@ -205,5 +289,26 @@ class Pie extends Path{
         var path = "M "+startPoint.x+" "+startPoint.y+" A "+c.radius+" "+c.radius+", 0, "+sweep+", 1, "+arcPoint.x+" "+arcPoint.y+" L "+c.x+" "+c.y;
 
         this.setPath(path)
+    }
+}
+
+class Grid extends SVG{
+    constructor(s,size){
+        super(s);
+
+        var hsize = $(s).width();
+        var vsize = $(s).height();
+
+        var group = new Group(s);
+        var e = group.draw().getElement();
+        for(var i=size;i<=hsize;i+=size){
+            var line = new Line();
+            line.setStart(i,0).setEnd(i,vsize).setStroke(1,"#ccc").draw(e);
+        }
+        for(var i=size;i<=vsize;i+=size){
+            var line = new Line();
+            line.setStart(0,i).setEnd(hsize,i).setStroke(1,"#ccc").draw(e);
+        }
+        console.dir(group);
     }
 }
